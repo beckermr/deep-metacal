@@ -1,0 +1,4 @@
+ngmix
+numba
+galsim
+numpy
