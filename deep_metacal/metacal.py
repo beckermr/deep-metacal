@@ -219,3 +219,41 @@ def get_galsim_object_from_ngmix_obs_nopix(obs, kind="image"):
         get_galsim_object_from_ngmix_obs(obs, kind=kind),
         galsim.Deconvolve(wcs.toWorld(galsim.Pixel(scale=1))),
     ])
+
+
+def metacal_wide_and_deep_psf_matched(obs_wide, obs_deep, obs_deep_noise, shears=None):
+    """Do metacalibration for a combination of wide+deep datasets."""
+
+    # first get the biggest reconv PSF of the two
+    reconv_psf = get_max_gauss_reconv_psf(obs_wide, obs_deep)
+
+    # make the wide obs
+    mcal_obs_wide = add_ngmix_obs(
+        match_psf(obs_wide, reconv_psf),
+        metacal_op_g1g2(obs_deep_noise, reconv_psf, 0, 0)
+    )
+
+    # get PSF matched noise
+    obs_wide_noise = obs_wide.copy()
+    obs_wide_noise.image = obs_wide.image
+    wide_noise_corr = match_psf(obs_wide_noise, reconv_psf)
+
+    # now run mcal on deep
+    mcal_res = metacal_op_shears(obs_deep, reconv_psf=reconv_psf, shears=shears)
+
+    # now add in noise corr to make it match the wide noise
+    for k in mcal_res:
+        mcal_res[k] = add_ngmix_obs(
+            mcal_res[k],
+            wide_noise_corr,
+        )
+
+    # we report the wide obs as noshear for later measurements
+    noshear_res = mcal_res.pop("noshear")
+    mcal_res["noshear"] = mcal_obs_wide
+    mcal_res["noshear_deep"] = noshear_res
+
+    for k in mcal_res:
+        mcal_res[k].psf.galsim_obj = reconv_psf
+
+    return mcal_res

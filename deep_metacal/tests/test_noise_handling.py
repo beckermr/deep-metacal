@@ -10,6 +10,7 @@ from ..metacal import (
     match_psf,
     add_ngmix_obs,
     get_max_gauss_reconv_psf_galsim,
+    metacal_wide_and_deep_psf_matched,
 )
 
 
@@ -68,14 +69,6 @@ def _simple_noise_sim():
         nse_level=deep_noise,
     )
 
-    nse_w_obs = _make_ngmix_obs(
-        img=rng.normal(size=(dim, dim), scale=wide_noise),
-        psf=psf_w_img,
-        dim=dim,
-        scale=scale,
-        nse_img=rng.normal(size=(dim, dim), scale=wide_noise),
-        nse_level=wide_noise,
-    )
     gal_w_obs = _make_ngmix_obs(
         img=rng.normal(size=(dim, dim), scale=wide_noise),
         psf=psf_w_img,
@@ -85,23 +78,49 @@ def _simple_noise_sim():
         nse_level=wide_noise,
     )
 
-    # do wide image
-    mwide = add_ngmix_obs(
-        match_psf(gal_w_obs, reconv_psf),
-        metacal_op_g1g2(nse_d_obs, reconv_psf, 0, 0)
-    )
+    if False:
+        # this is older code that is now inside metacal_wide_and_deep_psf_matched
+        # I am keeping it here for debugging just in case
+        nse_w_obs = _make_ngmix_obs(
+            img=rng.normal(size=(dim, dim), scale=wide_noise),
+            psf=psf_w_img,
+            dim=dim,
+            scale=scale,
+            nse_img=rng.normal(size=(dim, dim), scale=wide_noise),
+            nse_level=wide_noise,
+        )
 
-    # do deep image
-    mdeep = add_ngmix_obs(
-        metacal_op_g1g2(gal_d_obs, reconv_psf, 0, 0),
-        match_psf(nse_w_obs, reconv_psf),
-    )
+        # do wide image
+        mwide = add_ngmix_obs(
+            match_psf(gal_w_obs, reconv_psf),
+            metacal_op_g1g2(nse_d_obs, reconv_psf, 0, 0)
+        )
 
-    mwide_mcal = metacal_op_g1g2(gal_w_obs, reconv_psf, 0, 0)
+        # do deep image
+        mdeep = add_ngmix_obs(
+            metacal_op_g1g2(gal_d_obs, reconv_psf, 0, 0),
+            match_psf(nse_w_obs, reconv_psf),
+        )
+
+        mwide_mcal = metacal_op_g1g2(gal_w_obs, reconv_psf, 0, 0)
+
+        return {
+            "r_wide": mwide,
+            "r_deep": mdeep,
+            "mcal_wide": mwide_mcal,
+        }
+    else:
+        mcal_res = metacal_wide_and_deep_psf_matched(
+            gal_w_obs, gal_d_obs, nse_d_obs, shears=["noshear"]
+        )
+
+        mwide_mcal = metacal_op_g1g2(
+            gal_w_obs, mcal_res["noshear"].psf.galsim_obj, 0, 0
+        )
 
     return {
-        "r_wide": mwide,
-        "r_deep": mdeep,
+        "noshear": mcal_res["noshear"],
+        "noshear_deep": mcal_res["noshear_deep"],
         "mcal_wide": mwide_mcal,
     }
 
@@ -121,5 +140,8 @@ def test_noise_handling():
     for k in covs:
         covs[k] = np.mean(covs[k], axis=0)
 
-    assert covs["mcal_wide"][1, 1] > covs["r_wide"][1, 1]*1.5
-    assert np.allclose(covs["r_wide"], covs["r_deep"], rtol=0, atol=7e-4)
+    for k, v in covs.items():
+        print("%s:\n" % k, v, flush=True)
+
+    assert covs["mcal_wide"][1, 1] > covs["noshear"][1, 1]*1.5
+    assert np.allclose(covs["noshear"], covs["noshear_deep"], rtol=0, atol=7e-4)
