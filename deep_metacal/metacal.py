@@ -142,10 +142,13 @@ def metacal_op_g1g2(obs, reconv_psf, g1, g2):
     return _render_psf_and_build_obs(mcal_image, obs, reconv_psf, weight_fac=0.5)
 
 
-def metacal_op_shears(obs, reconv_psf, shears=None, step=DEFAULT_STEP):
+def metacal_op_shears(obs, reconv_psf=None, shears=None, step=DEFAULT_STEP):
     """Run metacal on an ngmix observation."""
     if shears is None:
         shears = DEFAULT_SHEARS
+
+    if reconv_psf is None:
+        reconv_psf = get_gauss_reconv_psf(obs)
 
     wcs = obs.jacobian.get_galsim_wcs()
     image = get_galsim_object_from_ngmix_obs(obs, kind="image")

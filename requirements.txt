@@ -3,3 +3,4 @@ numba
 galsim
 numpy
 esutil
+joblib
