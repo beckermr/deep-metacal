@@ -2,3 +2,4 @@ ngmix
 numba
 galsim
 numpy
+esutil
