@@ -1,8 +1,26 @@
 import galsim
 import numpy as np
 
+DEFAULT_SHEARS = ["noshear", "1p", "1m", "2p", "2m"]
+DEFAULT_STEP = 0.01
 
-def get_gauss_reconv_psf(psf, flux=1):
+
+def get_shear_tuple(shear, step):
+    if shear == "noshear":
+        return (0, 0)
+    elif shear == "1p":
+        return (step, 0)
+    elif shear == "1m":
+        return (-step, 0)
+    elif shear == "2p":
+        return (0, step)
+    elif shear == "2m":
+        return (0, -step)
+    else:
+        raise RuntimeError("Shear value '%s' not regonized!" % shear)
+
+
+def get_gauss_reconv_psf_galsim(psf, step=DEFAULT_STEP, flux=1):
     """Gets the target reconvolution PSF for an input PSF object.
 
     This is taken from galsim/tests/test_metacal.py and assumes the psf is
@@ -19,6 +37,8 @@ def get_gauss_reconv_psf(psf, flux=1):
     -------
     reconv_psf : galsim object
         The reconvolution PSF.
+    sigma : float
+        The width of the reconv PSF befor dilation.
     """
     dk = psf.stepk/4.0
 
@@ -38,7 +58,31 @@ def get_gauss_reconv_psf(psf, flux=1):
     # exp(-0.5 * ksq_max * sigma_sq) = smaller_kval
     sigma_sq = -2. * np.log(smaller_kval) / ksq_max
 
-    return galsim.Gaussian(sigma=np.sqrt(sigma_sq), flux=flux)
+    dilation = 1.0 + 2.0*step
+    return galsim.Gaussian(sigma=np.sqrt(sigma_sq) * dilation).withFlux(flux)
+
+
+def get_gauss_reconv_psf(obs, step=DEFAULT_STEP):
+    """Get the Gaussian reconv PSF for an ngmix obs."""
+    psf = get_galsim_object_from_ngmix_obs_nopix(obs.psf, kind="image")
+    return get_gauss_reconv_psf_galsim(psf, step=step)
+
+
+def get_max_gauss_reconv_psf_galsim(psf_w, psf_d, step=DEFAULT_STEP):
+    """Get the larger of two Gaussian reconvolution PSFs for two galsim objects."""
+    mc_psf_w = get_gauss_reconv_psf_galsim(psf_w, step=step)
+    mc_psf_d = get_gauss_reconv_psf_galsim(psf_d, step=step)
+    if mc_psf_w.fwhm > mc_psf_d.fwhm:
+        return mc_psf_w
+    else:
+        return mc_psf_d
+
+
+def get_max_gauss_reconv_psf(obs_w, obs_d, step=DEFAULT_STEP):
+    """Get the larger of two reconv PSFs for two ngmix.Observations."""
+    psf_w = get_galsim_object_from_ngmix_obs_nopix(obs_w.psf, kind="image")
+    psf_d = get_galsim_object_from_ngmix_obs_nopix(obs_d.psf, kind="image")
+    return get_max_gauss_reconv_psf_galsim(psf_w, psf_d, step=step)
 
 
 def _render_psf_and_build_obs(image, obs, reconv_psf, weight_fac=1):
@@ -47,8 +91,8 @@ def _render_psf_and_build_obs(image, obs, reconv_psf, weight_fac=1):
         ny=obs.psf.image.shape[0],
         wcs=obs.psf.jacobian.get_galsim_wcs(),
         center=galsim.PositionD(
-            x=obs.psf.jacobian.get_col0(),
-            y=obs.psf.jacobian.get_row0(),
+            x=obs.psf.jacobian.get_col0()+1,
+            y=obs.psf.jacobian.get_row0()+1,
         ),
     ).array
     psf_obs = obs.psf.copy()
@@ -60,13 +104,8 @@ def _render_psf_and_build_obs(image, obs, reconv_psf, weight_fac=1):
     return obs
 
 
-def metacal_op(obs, reconv_psf, g1, g2):
+def _metacal_op_g1g2_impl(*, wcs, image, noise, psf_inv, dims, reconv_psf, g1, g2):
     """Run metacal on an ngmix observation."""
-    wcs = obs.jacobian.get_galsim_wcs()
-    image = get_galsim_object_from_ngmix_obs(obs, kind="image")
-    noise = get_galsim_object_from_ngmix_obs(obs, kind="noise", rot90=1)
-    psf = get_galsim_object_from_ngmix_obs(obs.psf, kind="image")
-    psf_inv = galsim.Deconvolve(psf)
 
     ims = galsim.Convolve([
         galsim.Convolve([image, psf_inv]).shear(g1=g1, g2=g2),
@@ -78,12 +117,59 @@ def metacal_op(obs, reconv_psf, g1, g2):
         reconv_psf,
     ])
 
-    ims = ims.drawImage(nx=obs.image.shape[1], ny=obs.image.shape[0], wcs=wcs).array
+    ims = ims.drawImage(nx=dims[1], ny=dims[0], wcs=wcs).array
     ns = np.rot90(
-        ns.drawImage(nx=obs.image.shape[1], ny=obs.image.shape[0], wcs=wcs).array,
-        k=-1,
+        ns.drawImage(nx=dims[1], ny=dims[0], wcs=wcs).array,
+        k=3,
     )
-    return _render_psf_and_build_obs(ims+ns, obs, reconv_psf, weight_fac=0.5)
+    return ims + ns
+
+
+def metacal_op_g1g2(obs, reconv_psf, g1, g2):
+    """Run metacal on an ngmix observation."""
+    mcal_image = _metacal_op_g1g2_impl(
+        wcs=obs.jacobian.get_galsim_wcs(),
+        image=get_galsim_object_from_ngmix_obs(obs, kind="image"),
+        noise=get_galsim_object_from_ngmix_obs(obs, kind="noise", rot90=1),
+        psf_inv=galsim.Deconvolve(
+            get_galsim_object_from_ngmix_obs(obs.psf, kind="image")
+        ),
+        dims=obs.image.shape,
+        reconv_psf=reconv_psf,
+        g1=g1,
+        g2=g2,
+    )
+    return _render_psf_and_build_obs(mcal_image, obs, reconv_psf, weight_fac=0.5)
+
+
+def metacal_op_shears(obs, reconv_psf, shears=None, step=DEFAULT_STEP):
+    """Run metacal on an ngmix observation."""
+    if shears is None:
+        shears = DEFAULT_SHEARS
+
+    wcs = obs.jacobian.get_galsim_wcs()
+    image = get_galsim_object_from_ngmix_obs(obs, kind="image")
+    noise = get_galsim_object_from_ngmix_obs(obs, kind="noise", rot90=1)
+    psf = get_galsim_object_from_ngmix_obs(obs.psf, kind="image")
+    psf_inv = galsim.Deconvolve(psf)
+
+    mcal_res = {}
+    for shear in shears:
+        g1, g2 = get_shear_tuple(shear, step)
+        mcal_image = _metacal_op_g1g2_impl(
+            wcs=wcs,
+            image=image,
+            noise=noise,
+            psf_inv=psf_inv,
+            dims=obs.image.shape,
+            reconv_psf=reconv_psf,
+            g1=g1,
+            g2=g2,
+        )
+        mcal_res[shear] = _render_psf_and_build_obs(
+            mcal_image, obs, reconv_psf, weight_fac=0.5
+        )
+    return mcal_res
 
 
 def match_psf(obs, reconv_psf):

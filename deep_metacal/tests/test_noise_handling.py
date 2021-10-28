@@ -6,20 +6,11 @@ from ..pixel_cov import meas_pixel_cov
 from esutil.pbar import prange
 
 from ..metacal import (
-    metacal_op,
+    metacal_op_g1g2,
     match_psf,
-    get_gauss_reconv_psf,
     add_ngmix_obs,
+    get_max_gauss_reconv_psf_galsim,
 )
-
-
-def _get_reconv_psf(psf_w, psf_d):
-    mc_psf_w = get_gauss_reconv_psf(psf_w)
-    mc_psf_d = get_gauss_reconv_psf(psf_d)
-    if mc_psf_w.fwhm > mc_psf_d.fwhm:
-        return mc_psf_w
-    else:
-        return mc_psf_d
 
 
 def _make_ngmix_obs(*, img, psf, dim, scale, nse_img, nse_level):
@@ -52,8 +43,8 @@ def _simple_noise_sim():
     seed = None
 
     psf_w = galsim.Gaussian(fwhm=0.8)
-    psf_d = galsim.Gaussian(fwhm=0.9)
-    reconv_psf = _get_reconv_psf(psf_w, psf_d)
+    psf_d = galsim.Gaussian(fwhm=0.8)
+    reconv_psf = get_max_gauss_reconv_psf_galsim(psf_w, psf_d)
     psf_w_img = psf_w.drawImage(nx=dim, ny=dim, scale=scale).array
     psf_d_img = psf_d.drawImage(nx=dim, ny=dim, scale=scale).array
 
@@ -97,16 +88,16 @@ def _simple_noise_sim():
     # do wide image
     mwide = add_ngmix_obs(
         match_psf(gal_w_obs, reconv_psf),
-        metacal_op(nse_d_obs, reconv_psf, 0, 0)
+        metacal_op_g1g2(nse_d_obs, reconv_psf, 0, 0)
     )
 
     # do deep image
     mdeep = add_ngmix_obs(
-        metacal_op(gal_d_obs, reconv_psf, 0, 0),
+        metacal_op_g1g2(gal_d_obs, reconv_psf, 0, 0),
         match_psf(nse_w_obs, reconv_psf),
     )
 
-    mwide_mcal = metacal_op(gal_w_obs, reconv_psf, 0, 0)
+    mwide_mcal = metacal_op_g1g2(gal_w_obs, reconv_psf, 0, 0)
 
     return {
         "r_wide": mwide,
@@ -130,5 +121,5 @@ def test_noise_handling():
     for k in covs:
         covs[k] = np.mean(covs[k], axis=0)
 
-    assert covs["mcal_wide"][1, 1] > covs["r_wide"][1, 1]*1.4
+    assert covs["mcal_wide"][1, 1] > covs["r_wide"][1, 1]*1.5
     assert np.allclose(covs["r_wide"], covs["r_deep"], rtol=0, atol=7e-4)
