@@ -105,7 +105,10 @@ def _render_psf_and_build_obs(image, obs, reconv_psf, weight_fac=1):
 
 
 def _metacal_op_g1g2_impl(*, wcs, image, noise, psf_inv, dims, reconv_psf, g1, g2):
-    """Run metacal on an ngmix observation."""
+    """Run metacal on an ngmix observation.
+
+    Note that the noise image should already be rotated by 90 degrees here.
+    """
 
     ims = galsim.Convolve([
         galsim.Convolve([image, psf_inv]).shear(g1=g1, g2=g2),
