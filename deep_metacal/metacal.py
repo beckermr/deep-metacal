@@ -148,7 +148,7 @@ def metacal_op_shears(obs, reconv_psf=None, shears=None, step=DEFAULT_STEP):
         shears = DEFAULT_SHEARS
 
     if reconv_psf is None:
-        reconv_psf = get_gauss_reconv_psf(obs)
+        reconv_psf = get_gauss_reconv_psf(obs, step=step)
 
     wcs = obs.jacobian.get_galsim_wcs()
     image = get_galsim_object_from_ngmix_obs(obs, kind="image")

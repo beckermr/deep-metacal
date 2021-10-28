@@ -5,7 +5,7 @@ import joblib
 
 import pytest
 
-from ..metacal import metacal_op_shears, DEFAULT_SHEARS, get_gauss_reconv_psf
+from ..metacal import metacal_op_shears, DEFAULT_SHEARS
 from ngmix.gaussmom import GaussMom
 
 FITTER = GaussMom(1.2)
@@ -75,15 +75,13 @@ def _run_fit_mcal_res(mcal_res):
 
 def _run_single_sim_pair(seed, s2n):
     obs_plus = _make_sim(seed=seed, g1=0.02, g2=0.0, s2n=s2n)
-    reconv_psf = get_gauss_reconv_psf(obs_plus)
-    mcal_res = metacal_op_shears(obs_plus, reconv_psf)
+    mcal_res = metacal_op_shears(obs_plus)
     res_p = _run_fit_mcal_res(mcal_res)
     if res_p is None or np.any(res_p["mcal_flags"] != 0):
         return None
 
     obs_minus = _make_sim(seed=seed, g1=-0.02, g2=0.0, s2n=s2n)
-    reconv_psf = get_gauss_reconv_psf(obs_minus)
-    mcal_res = metacal_op_shears(obs_minus, reconv_psf)
+    mcal_res = metacal_op_shears(obs_minus)
     res_m = _run_fit_mcal_res(mcal_res)
     if res_m is None or np.any(res_m["mcal_flags"] != 0):
         return None
