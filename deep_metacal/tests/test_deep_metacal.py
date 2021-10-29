@@ -190,7 +190,7 @@ def test_deep_metacal_widelows2n():
 
 @pytest.mark.slow
 def test_deep_metacal_slow():
-    nsims = 100_000
+    nsims = 1_000_000
     chunk_size = multiprocessing.cpu_count() * 100
     nchunks = nsims // chunk_size
     noise_fac = 1/np.sqrt(10)
