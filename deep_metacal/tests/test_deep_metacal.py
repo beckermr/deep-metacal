@@ -6,10 +6,10 @@ import multiprocessing
 
 import pytest
 
-from ..metacal import metacal_wide_and_deep_psf_matched, DEFAULT_SHEARS
-from ngmix.gaussmom import GaussMom
-
-FITTER = GaussMom(1.2)
+from ..metacal import metacal_wide_and_deep_psf_matched
+from ..utils import (
+    estimate_m_and_c, measure_mcal_shear_quants, fit_mcal_res_gauss_mom,
+)
 
 
 def _make_single_sim(*, rng, psf, obj, nse):
@@ -89,11 +89,10 @@ def _run_single_sim(seed, s2n, g1, g2, deep_noise_fac, deep_psf_fac):
     mcal_res = metacal_wide_and_deep_psf_matched(
         obs_w, obs_d, obs_dn,
     )
-    res = _run_fit_mcal_res(mcal_res)
-    if res is None or np.any(res["mcal_flags"] != 0):
+    res = fit_mcal_res_gauss_mom(mcal_res)
+    if res is None or np.any(res["flags"] != 0):
         return None
-    else:
-        return res
+    return measure_mcal_shear_quants(res)
 
 
 def _run_sim_pair(seed, s2n, deep_noise_fac, deep_psf_fac):
@@ -106,85 +105,6 @@ def _run_sim_pair(seed, s2n, deep_noise_fac, deep_psf_fac):
         return None
 
     return res_p, res_m
-
-
-def _run_fit_mcal_res(mcal_res):
-    psf_res = FITTER.go(mcal_res["noshear"].psf)
-    if psf_res["flags"] != 0:
-        return None
-
-    dt = [
-        ("mcal_flags", "i4"),
-        ("mcal_g", "f8", (2,)),
-        ("mcal_T_ratio", "f8"),
-        ("mcal_s2n", "f8"),
-        ("shear", "U7"),
-    ]
-    vals = []
-    for shear, obs in mcal_res.items():
-        res = FITTER.go(obs)
-        vals.append(
-            (res["flags"], res["e"], res["T"]/psf_res["T"], res["s2n"], shear)
-        )
-    d = np.array(vals, dtype=dt)
-    if np.any(d["mcal_flags"] != 0):
-        return None
-    else:
-        return d
-
-
-def _msk_it(*, d, s2n_cut, size_cut, shear):
-    return (
-        (d["shear"] == shear) &
-        (d["mcal_flags"] == 0) &
-        (d["mcal_s2n"] > s2n_cut) &
-        (d["mcal_T_ratio"] > size_cut)
-    )
-
-
-def _measure_g1g2R(*, d, s2n_cut, size_cut):
-    msks = {}
-    for shear in DEFAULT_SHEARS:
-        msks[shear] = _msk_it(
-            d=d, s2n_cut=s2n_cut, size_cut=size_cut, shear=shear)
-
-    g1_1p = np.mean(d['mcal_g'][msks['1p'], 0])
-    g1_1m = np.mean(d['mcal_g'][msks['1m'], 0])
-    g2_2p = np.mean(d['mcal_g'][msks['2p'], 1])
-    g2_2m = np.mean(d['mcal_g'][msks['2m'], 1])
-    R11 = (g1_1p - g1_1m) / 2 / 0.01
-    R22 = (g2_2p - g2_2m) / 2 / 0.01
-
-    g1 = np.mean(d['mcal_g'][msks['noshear'], 0])
-    g2 = np.mean(d['mcal_g'][msks['noshear'], 1])
-
-    return g1, g2, R11, R22
-
-
-def _measure_m_c(res_p, res_m):
-    g1p, g2p, R11p, R22p = _measure_g1g2R(d=res_p, s2n_cut=10, size_cut=1.2)
-    g1m, g2m, R11m, R22m = _measure_g1g2R(d=res_m, s2n_cut=10, size_cut=1.2)
-
-    m = (g1p - g1m)/(R11p + R11m)/0.02 - 1
-    c = (g2p + g2m)/(R22p + R22m)
-
-    return m, c
-
-
-def _measure_m_c_bootstrap(res_p, res_m, seed, nboot=100):
-    rng = np.random.RandomState(seed=seed)
-    marr = []
-    carr = []
-    for _ in range(nboot):
-        inds = rng.choice(len(res_p), size=len(res_p), replace=True)
-        _res_p = np.hstack([res_p[i] for i in inds])
-        _res_m = np.hstack([res_m[i] for i in inds])
-        m, c = _measure_m_c(_res_p, _res_m)
-        marr.append(m)
-        carr.append(c)
-
-    m, c = _measure_m_c(np.hstack(res_p), np.hstack(res_m))
-    return m, np.std(marr), c, np.std(carr)
 
 
 def test_deep_metacal():
@@ -205,8 +125,7 @@ def test_deep_metacal():
             res_p.append(res[0])
             res_m.append(res[1])
 
-    seed = rng.randint(size=nsims, low=1, high=2**29)
-    m, merr, c, cerr = _measure_m_c_bootstrap(res_p, res_m, seed, nboot=100)
+    m, merr, c, cerr = estimate_m_and_c(res_p, res_m, 0.02, jackknife=len(res_p))
 
     print("m: %f +/- %f [1e-3, 3-sigma]" % (m/1e-3, 3*merr/1e-3), flush=True)
     print("c: %f +/- %f [1e-5, 3-sigma]" % (c/1e-5, 3*cerr/1e-5), flush=True)
@@ -233,8 +152,7 @@ def test_deep_metacal_psfmatch():
             res_p.append(res[0])
             res_m.append(res[1])
 
-    seed = rng.randint(size=nsims, low=1, high=2**29)
-    m, merr, c, cerr = _measure_m_c_bootstrap(res_p, res_m, seed, nboot=100)
+    m, merr, c, cerr = estimate_m_and_c(res_p, res_m, 0.02, jackknife=len(res_p))
 
     print("m: %f +/- %f [1e-3, 3-sigma]" % (m/1e-3, 3*merr/1e-3), flush=True)
     print("c: %f +/- %f [1e-5, 3-sigma]" % (c/1e-5, 3*cerr/1e-5), flush=True)
@@ -261,8 +179,7 @@ def test_deep_metacal_widelows2n():
             res_p.append(res[0])
             res_m.append(res[1])
 
-    seed = rng.randint(size=nsims, low=1, high=2**29)
-    m, merr, c, cerr = _measure_m_c_bootstrap(res_p, res_m, seed, nboot=100)
+    m, merr, c, cerr = estimate_m_and_c(res_p, res_m, 0.02, jackknife=len(res_p))
 
     print("m: %f +/- %f [1e-3, 3-sigma]" % (m/1e-3, 3*merr/1e-3), flush=True)
     print("c: %f +/- %f [1e-5, 3-sigma]" % (c/1e-5, 3*cerr/1e-5), flush=True)
@@ -274,7 +191,7 @@ def test_deep_metacal_widelows2n():
 @pytest.mark.slow
 def test_deep_metacal_slow():
     nsims = 100_000
-    chunk_size = multiprocessing.cpu_count() * 10
+    chunk_size = multiprocessing.cpu_count() * 100
     nchunks = nsims // chunk_size
     noise_fac = 1/np.sqrt(10)
 
@@ -295,8 +212,14 @@ def test_deep_metacal_slow():
                 res_p.append(res[0])
                 res_m.append(res[1])
 
-        seed = rng.randint(size=nsims, low=1, high=2**29)
-        m, merr, c, cerr = _measure_m_c_bootstrap(res_p, res_m, seed, nboot=100)
+        if len(res_p) < 500:
+            njack = len(res_p)
+        else:
+            njack = 100
+
+        m, merr, c, cerr = estimate_m_and_c(
+            res_p, res_m, 0.02, jackknife=njack,
+        )
 
         print(flush=True)
         print("# of sims:", len(res_p), flush=True)
