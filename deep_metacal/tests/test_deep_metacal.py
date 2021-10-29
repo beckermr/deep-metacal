@@ -2,6 +2,7 @@ import numpy as np
 import ngmix
 import galsim
 import joblib
+import multiprocessing
 
 import pytest
 
@@ -273,7 +274,7 @@ def test_deep_metacal_widelows2n():
 @pytest.mark.slow
 def test_deep_metacal_slow():
     nsims = 100_000
-    chunk_size = 100
+    chunk_size = multiprocessing.cpu_count() * 10
     nchunks = nsims // chunk_size
     noise_fac = 1/np.sqrt(10)
 
