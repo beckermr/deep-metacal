@@ -273,27 +273,35 @@ def test_deep_metacal_widelows2n():
 @pytest.mark.slow
 def test_deep_metacal_slow():
     nsims = 100_000
+    chunk_size = 100
+    nchunks = nsims // chunk_size
     noise_fac = 1/np.sqrt(10)
 
     rng = np.random.RandomState(seed=34132)
     seeds = rng.randint(size=nsims, low=1, high=2**29)
-    jobs = [
-        joblib.delayed(_run_sim_pair)(seed, 20, noise_fac, 1)
-        for seed in seeds
-    ]
-    outputs = joblib.Parallel(n_jobs=-1, verbose=10)(jobs)
     res_p = []
     res_m = []
-    for res in outputs:
-        if res is not None:
-            res_p.append(res[0])
-            res_m.append(res[1])
+    loc = 0
+    for chunk in range(nchunks):
+        _seeds = seeds[loc:loc + chunk_size]
+        jobs = [
+            joblib.delayed(_run_sim_pair)(seed, 20, noise_fac, 1)
+            for seed in _seeds
+        ]
+        outputs = joblib.Parallel(n_jobs=-1, verbose=10)(jobs)
+        for res in outputs:
+            if res is not None:
+                res_p.append(res[0])
+                res_m.append(res[1])
 
-    seed = rng.randint(size=nsims, low=1, high=2**29)
-    m, merr, c, cerr = _measure_m_c_bootstrap(res_p, res_m, seed, nboot=100)
+        seed = rng.randint(size=nsims, low=1, high=2**29)
+        m, merr, c, cerr = _measure_m_c_bootstrap(res_p, res_m, seed, nboot=100)
 
-    print("m: %f +/- %f [1e-3, 3-sigma]" % (m/1e-3, 3*merr/1e-3), flush=True)
-    print("c: %f +/- %f [1e-5, 3-sigma]" % (c/1e-5, 3*cerr/1e-5), flush=True)
+        print("# of sims:", len(res_p))
+        print("    m: %f +/- %f [1e-3, 3-sigma]" % (m/1e-3, 3*merr/1e-3), flush=True)
+        print("    c: %f +/- %f [1e-5, 3-sigma]" % (c/1e-5, 3*cerr/1e-5), flush=True)
+
+        loc += chunk_size
 
     assert np.abs(m) < max(5e-4, 3*merr), (m, merr)
     assert np.abs(c) < 4.0*cerr, (c, cerr)
