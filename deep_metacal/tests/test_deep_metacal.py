@@ -298,9 +298,11 @@ def test_deep_metacal_slow():
         seed = rng.randint(size=nsims, low=1, high=2**29)
         m, merr, c, cerr = _measure_m_c_bootstrap(res_p, res_m, seed, nboot=100)
 
-        print("# of sims:", len(res_p))
-        print("    m: %f +/- %f [1e-3, 3-sigma]" % (m/1e-3, 3*merr/1e-3), flush=True)
-        print("    c: %f +/- %f [1e-5, 3-sigma]" % (c/1e-5, 3*cerr/1e-5), flush=True)
+        print(flush=True)
+        print("# of sims:", len(res_p), flush=True)
+        print("m: %f +/- %f [1e-3, 3-sigma]" % (m/1e-3, 3*merr/1e-3), flush=True)
+        print("c: %f +/- %f [1e-5, 3-sigma]" % (c/1e-5, 3*cerr/1e-5), flush=True)
+        print(flush=True)
 
         loc += chunk_size
 
