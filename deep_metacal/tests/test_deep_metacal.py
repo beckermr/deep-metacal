@@ -203,7 +203,7 @@ def test_deep_metacal_slow():
     for chunk in range(nchunks):
         _seeds = seeds[loc:loc + chunk_size]
         jobs = [
-            joblib.delayed(_run_sim_pair)(seed, 20, noise_fac, 1)
+            joblib.delayed(_run_sim_pair)(seed, 20, noise_fac, 0.8)
             for seed in _seeds
         ]
         outputs = joblib.Parallel(n_jobs=-1, verbose=10)(jobs)
