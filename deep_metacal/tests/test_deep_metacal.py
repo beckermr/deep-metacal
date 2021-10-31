@@ -12,9 +12,8 @@ from ..utils import (
 )
 
 
-def _make_single_sim(*, rng, psf, obj, nse):
+def _make_single_sim(*, rng, psf, obj, nse, dither):
     cen = (53-1)/2
-    dither = rng.uniform(size=2, low=-0.5, high=0.5)
     scale = 0.263
 
     im = obj.drawImage(nx=53, ny=53, offset=dither, scale=scale).array
@@ -57,11 +56,13 @@ def _make_sim(*, seed, g1, g2, s2n, deep_noise_fac, deep_psf_fac):
     im = obj.drawImage(nx=53, ny=53, offset=dither, scale=scale).array
     nse = np.sqrt(np.sum(im**2)) / s2n
 
+    dither = rng.uniform(size=2, low=-0.5, high=0.5)
     obs_wide = _make_single_sim(
         rng=rng,
         psf=psf,
         obj=obj,
         nse=nse,
+        dither=dither,
     )
 
     obs_deep = _make_single_sim(
@@ -69,6 +70,7 @@ def _make_sim(*, seed, g1, g2, s2n, deep_noise_fac, deep_psf_fac):
         psf=deep_psf,
         obj=deep_obj,
         nse=nse * deep_noise_fac,
+        dither=dither,
     )
 
     obs_deep_noise = _make_single_sim(
@@ -76,6 +78,7 @@ def _make_sim(*, seed, g1, g2, s2n, deep_noise_fac, deep_psf_fac):
         psf=deep_psf,
         obj=deep_obj.withFlux(0),
         nse=nse * deep_noise_fac,
+        dither=dither,
     )
 
     return obs_wide, obs_deep, obs_deep_noise
@@ -221,11 +224,9 @@ def test_deep_metacal_slow():
             res_p, res_m, 0.02, jackknife=njack,
         )
 
-        print(flush=True)
         print("# of sims:", len(res_p), flush=True)
         print("m: %f +/- %f [1e-3, 3-sigma]" % (m/1e-3, 3*merr/1e-3), flush=True)
         print("c: %f +/- %f [1e-5, 3-sigma]" % (c/1e-5, 3*cerr/1e-5), flush=True)
-        print(flush=True)
 
         loc += chunk_size
 

@@ -1,5 +1,6 @@
 import galsim
 import numpy as np
+import ngmix
 
 DEFAULT_SHEARS = ["noshear", "1p", "1m", "2p", "2m"]
 DEFAULT_STEP = 0.01
@@ -123,7 +124,7 @@ def _metacal_op_g1g2_impl(*, wcs, image, noise, psf_inv, dims, reconv_psf, g1, g
     ims = ims.drawImage(nx=dims[1], ny=dims[0], wcs=wcs).array
     ns = np.rot90(
         ns.drawImage(nx=dims[1], ny=dims[0], wcs=wcs).array,
-        k=3,
+        k=-1,
     )
     return ims + ns
 
@@ -133,6 +134,8 @@ def metacal_op_g1g2(obs, reconv_psf, g1, g2):
     mcal_image = _metacal_op_g1g2_impl(
         wcs=obs.jacobian.get_galsim_wcs(),
         image=get_galsim_object_from_ngmix_obs(obs, kind="image"),
+        # we rotate by 90 degrees on the way in and then _metacal_op_g1g2_impl
+        # rotates back after deconv and shearing
         noise=get_galsim_object_from_ngmix_obs(obs, kind="noise", rot90=1),
         psf_inv=galsim.Deconvolve(
             get_galsim_object_from_ngmix_obs(obs.psf, kind="image")
@@ -155,6 +158,8 @@ def metacal_op_shears(obs, reconv_psf=None, shears=None, step=DEFAULT_STEP):
 
     wcs = obs.jacobian.get_galsim_wcs()
     image = get_galsim_object_from_ngmix_obs(obs, kind="image")
+    # we rotate by 90 degrees on the way in and then _metacal_op_g1g2_impl
+    # rotates back after deconv and shearing
     noise = get_galsim_object_from_ngmix_obs(obs, kind="noise", rot90=1)
     psf = get_galsim_object_from_ngmix_obs(obs.psf, kind="image")
     psf_inv = galsim.Deconvolve(psf)
@@ -190,14 +195,84 @@ def match_psf(obs, reconv_psf):
     return _render_psf_and_build_obs(ims, obs, reconv_psf, weight_fac=1)
 
 
-def add_ngmix_obs(obs1, obs2):
+def _extract_attr(obs, attr, dtype):
+    if getattr(obs, "has_" + attr)():
+        return getattr(obs, attr)
+    else:
+        return np.zeros_like(obs.image, dtype=dtype)
+
+
+def add_ngmix_obs(obs1, obs2, ignore_psf=False):
     """Add two ngmix observations"""
-    obs = obs1.copy()
-    obs.image = obs1.image + obs2.image
+
+    if repr(obs1.jacobian) != repr(obs2.jacobian):
+        raise RuntimeError(
+            "Jacobians must be equal to add ngmix observations! %s != %s" % (
+                repr(obs1.jacobian),
+                repr(obs2.jacobian)
+            ),
+        )
+
+    if obs1.image.shape != obs2.image.shape:
+        raise RuntimeError(
+            "Image shapes must be equal to add ngmix observations! %s != %s" % (
+                obs1.image.shape,
+                obs2.image.shape,
+            ),
+        )
+
+    if obs1.has_psf() != obs2.has_psf() and not ignore_psf:
+        raise RuntimeError(
+            "Observations must both either have or not have a "
+            "PSF to add them. %s != %s" % (
+                obs1.has_psf(),
+                obs2.has_psf(),
+            ),
+        )
+
+    if obs1.has_psf() and obs2.has_psf() and not ignore_psf:
+        # We ignore the PSF in this call since PSFs do not have PSFs
+        new_psf = add_ngmix_obs(obs1.psf, obs2.psf, ignore_psf=True)
+    else:
+        new_psf = None
+
     msk = (obs1.weight > 0) & (obs2.weight > 0)
     new_wgt = np.zeros_like(obs1.weight)
     new_wgt[msk] = 1/(1/obs1.weight[msk] + 1/obs2.weight[msk])
-    obs.weight = new_wgt
+    obs = ngmix.Observation(
+        image=obs1.image + obs2.image,
+        weight=new_wgt,
+        psf=new_psf,
+        jacobian=obs1.jacobian,  # makes a copy
+    )
+
+    if obs1.has_bmask() or obs2.has_bmask():
+        obs.bmask = (
+            _extract_attr(obs1, "bmask", np.int32)
+            | _extract_attr(obs2, "bmask", np.int32)
+        )
+
+    if obs1.has_ormask() or obs2.has_ormask():
+        obs.ormask = (
+            _extract_attr(obs1, "ormask", np.int32)
+            | _extract_attr(obs2, "ormask", np.int32)
+        )
+
+    if obs1.has_noise() or obs2.has_noise():
+        obs.noise = (
+            _extract_attr(obs1, "noise", np.float32)
+            + _extract_attr(obs2, "noise", np.float32)
+        )
+
+    if obs1.has_mfrac() or obs2.has_mfrac():
+        obs.mfrac = (
+            _extract_attr(obs1, "mfrac", np.float32)
+            + _extract_attr(obs2, "mfrac", np.float32)
+        )/2
+
+    obs.update_meta_data(obs1.meta)
+    obs.update_meta_data(obs2.meta)
+
     return obs
 
 
