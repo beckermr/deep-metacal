@@ -250,7 +250,7 @@ def test_deep_metacal_slow():
     (True, True),
 ])
 def test_deep_metacal_slow_terms(skip_wide, skip_deep):
-    nsims = 400  # 1_000_000
+    nsims = 10_000  # 1_000_000
     chunk_size = multiprocessing.cpu_count() * 100
     nchunks = nsims // chunk_size + 1
     noise_fac = 1/np.sqrt(10)
