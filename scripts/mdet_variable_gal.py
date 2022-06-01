@@ -76,22 +76,6 @@ def make_ngmix_obs(*, img, psf, dim, scale, nse_img, nse_level):
     return obs
 
 
-def add_noise(obj_obs_deep, noise_deep2wide, n_sigma_deep2wide):
-    image = obj_obs_deep.image
-    weight = obj_obs_deep.weight
-    psf_obs = obj_obs_deep.psf
-    jacobian = obj_obs_deep.jacobian
-
-    obj_obs_wide = ngmix.Observation(
-        image=image+noise_deep2wide,
-        weight=np.ones_like(image)/(1/weight+n_sigma_deep2wide**2),
-        psf=psf_obs,
-        jacobian=jacobian
-    )
-
-    return obj_obs_wide
-
-
 def mdet(
     gal_w0, gal_d0,
     wide_noise=1e-2,
@@ -235,7 +219,7 @@ def worker(seed, use_mcal):
 
 if __name__ == "__main__":
 
-    nsims = 10
+    nsims = 1000
     rng = np.random.RandomState(seed=34132)
     seeds = rng.randint(size=nsims, low=1, high=2**29)
     jobs = [
