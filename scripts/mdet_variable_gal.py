@@ -192,10 +192,7 @@ def worker(seed, use_mcal):
     )
 
     gal_wp = gal_w.shear(g1=0.02, g2=0.0)
-    gal_wm = gal_w.shear(g1=-0.02, g2=0.0)
-
     gal_dp = gal_d.shear(g1=0.02, g2=0.0)
-    gal_dm = gal_d.shear(g1=-0.02, g2=0.0)
 
     fwhm_w = 0.8
     fwhm_d = 0.8
@@ -214,7 +211,7 @@ def worker(seed, use_mcal):
 
 if __name__ == "__main__":
 
-    nsims = 1000
+    nsims = 10_000
     rng = np.random.RandomState(seed=34132)
     seeds = rng.randint(size=nsims, low=1, high=2**29)
     jobs = [
