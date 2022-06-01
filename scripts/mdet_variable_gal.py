@@ -87,7 +87,8 @@ def mdet(
     psf_d_img = psf_d.drawImage(nx=dim, ny=dim, scale=scale).array
 
     gal_w = galsim.Convolve(gal_w0, psf_w)
-    gal_d = galsim.Convolve(gal_d0, psf_d)
+    # use same object here to reduce noise
+    gal_d = galsim.Convolve(gal_w0, psf_d)
 
     gal_d_img = gal_d.drawImage(nx=dim, ny=dim, scale=scale).array
     gal_w_img = gal_w.drawImage(nx=dim, ny=dim, scale=scale).array
@@ -198,7 +199,7 @@ def worker(seed, use_mcal):
 
 if __name__ == "__main__":
 
-    nsims = 10_000
+    nsims = 1_000
     rng = np.random.RandomState(seed=34132)
     seeds = rng.randint(size=nsims, low=1, high=2**29)
     jobs = [
