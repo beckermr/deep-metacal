@@ -97,7 +97,7 @@ def test_metacal():
     assert np.abs(c) < 4.0*cerr, (c, cerr)
 
 
-@pytest.mark.slow
+@pytest.mark.slowdeepmdet
 def test_metacal_slow():
     nsims = 1_000_000
     chunk_size = multiprocessing.cpu_count() * 100

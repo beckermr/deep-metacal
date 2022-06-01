@@ -199,7 +199,7 @@ def test_deep_metacal_widelows2n():
     assert np.abs(c) < 4.0*cerr, (c, cerr)
 
 
-@pytest.mark.slow
+@pytest.mark.slowdeepmdet
 def test_deep_metacal_slow():
     nsims = 1_000_000
     chunk_size = multiprocessing.cpu_count() * 100
@@ -243,7 +243,7 @@ def test_deep_metacal_slow():
     assert np.abs(c) < 4.0*cerr, (c, cerr)
 
 
-@pytest.mark.slow
+@pytest.mark.slowdeepmdet
 @pytest.mark.parametrize("skip_wide,skip_deep", [
     (True, False),
     (False, True),
