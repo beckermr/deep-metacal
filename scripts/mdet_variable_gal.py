@@ -80,12 +80,8 @@ def mdet(
     dim = 73
     rng = np.random.RandomState(seed=seed)
 
-    psf_w = galsim.Gaussian(
-        fwhm=fwhm_w
-    ).shear(g1=np.random.uniform()*0.04 - 0.02, g2=np.random.uniform()*0.04 - 0.02)
-    psf_d = galsim.Gaussian(
-        fwhm=fwhm_d
-    ).shear(g1=np.random.uniform()*0.04 - 0.02, g2=np.random.uniform()*0.04 - 0.02)
+    psf_w = galsim.Gaussian(fwhm=fwhm_w)
+    psf_d = galsim.Gaussian(fwhm=fwhm_d)
 
     psf_w_img = psf_w.drawImage(nx=dim, ny=dim, scale=scale).array
     psf_d_img = psf_d.drawImage(nx=dim, ny=dim, scale=scale).array
@@ -202,7 +198,7 @@ def worker(seed, use_mcal):
 
 if __name__ == "__main__":
 
-    nsims = 1000
+    nsims = 2_000
     rng = np.random.RandomState(seed=34132)
     seeds = rng.randint(size=nsims, low=1, high=2**29)
     jobs = [
