@@ -209,12 +209,7 @@ def worker(seed, use_mcal):
         fwhm_w=fwhm_w, fwhm_d=fwhm_d,
         seed=seed, use_mcal=use_mcal,
     )
-    d_m = mdet(
-        gal_wm, gal_dm, wide_noise=sigma_w, deep_noise=sigma_d,
-        fwhm_w=fwhm_w, fwhm_d=fwhm_d,
-        seed=seed, use_mcal=use_mcal,
-    )
-    return d_p, d_m
+    return d_p
 
 
 if __name__ == "__main__":
@@ -229,17 +224,9 @@ if __name__ == "__main__":
     outputs = joblib.Parallel(n_jobs=-1, verbose=10)(jobs)
 
     fitsio.write(
-        "dmcal_p.fits",
+        "dmcal.fits",
         np.concatenate([
-            o[0] for o in outputs if o[0] is not None
-        ], axis=0),
-        clobber=True,
-    )
-
-    fitsio.write(
-        "dmcal_m.fits",
-        np.concatenate([
-            o[1] for o in outputs if o[1] is not None
+            o for o in outputs if o is not None
         ], axis=0),
         clobber=True,
     )
@@ -251,17 +238,9 @@ if __name__ == "__main__":
     outputs = joblib.Parallel(n_jobs=-1, verbose=10)(jobs)
 
     fitsio.write(
-        "mcal_p.fits",
+        "mcal.fits",
         np.concatenate([
-            o[0] for o in outputs if o[0] is not None
-        ], axis=0),
-        clobber=True,
-    )
-
-    fitsio.write(
-        "mcal_m.fits",
-        np.concatenate([
-            o[1] for o in outputs if o[1] is not None
+            o for o in outputs if o is not None
         ], axis=0),
         clobber=True,
     )
