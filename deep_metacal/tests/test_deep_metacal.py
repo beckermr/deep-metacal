@@ -245,9 +245,9 @@ def test_deep_metacal_slow():
 
 @pytest.mark.slowdeepmdet
 @pytest.mark.parametrize("skip_wide,skip_deep", [
-    (True, False),
-    (False, True),
     (True, True),
+    (False, True),
+    (True, False),
 ])
 def test_deep_metacal_slow_terms(skip_wide, skip_deep):
     nsims = 10_000  # 1_000_000
@@ -264,7 +264,7 @@ def test_deep_metacal_slow_terms(skip_wide, skip_deep):
     for chunk in range(nchunks):
         _seeds = seeds[loc:loc + chunk_size]
         jobs = [
-            joblib.delayed(_run_sim_pair)(seed, 20, noise_fac, 1, skip_wide, skip_deep)
+            joblib.delayed(_run_sim_pair)(seed, 10, noise_fac, 1, skip_wide, skip_deep)
             for seed in _seeds
         ]
         outputs = joblib.Parallel(n_jobs=-1, verbose=10)(jobs)
