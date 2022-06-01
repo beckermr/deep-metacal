@@ -1,3 +1,6 @@
+import functools
+import fitsio
+import os
 import time
 from contextlib import contextmanager
 import sys
@@ -9,6 +12,15 @@ from ngmix.gaussmom import GaussMom
 from .metacal import DEFAULT_SHEARS
 
 GLOBAL_START_TIME = time.time()
+
+
+@functools.lru_cache()
+def cached_descwl_catalog_read():
+    fname = os.path.join(os.environ["CATSIM_DIR"], "OneDegSq.fits")
+    cat = fitsio.read(fname)
+    cut = cat['r_ab'] < 26.0
+    cat = cat[cut]
+    return cat
 
 
 def measure_mcal_shear_quants(data, s2n_cut=10, t_ratio_cut=1.2):

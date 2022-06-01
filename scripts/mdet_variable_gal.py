@@ -1,4 +1,3 @@
-import os
 import numpy as np
 import descwl
 import ngmix
@@ -8,14 +7,6 @@ import joblib
 
 from deep_metacal.metacal import metacal_wide_and_deep_psf_matched, metacal_op_shears
 import deep_metacal.utils
-
-
-def _cached_catalog_read():
-    fname = os.path.join(os.environ["CATSIM_DIR"], "OneDegSq.fits")
-    cat = fitsio.read(fname)
-    cut = cat['r_ab'] < 26.0
-    cat = cat[cut]
-    return cat
 
 
 def get_survey(bands):
@@ -163,7 +154,7 @@ def worker(seed, use_mcal):
 
     noise_deep = noise_wide/np.sqrt(10)
 
-    cat = _cached_catalog_read()
+    cat = deep_metacal.utils.cached_descwl_catalog_read()
 
     # build wide galaxy
     cat['pa_disk'] = rng.uniform(
