@@ -44,9 +44,9 @@ def _make_single_sim(*, rng, psf, obj, nse, dither):
 def _make_sim(*, seed, g1, g2, s2n, deep_noise_fac, deep_psf_fac):
     rng = np.random.RandomState(seed=seed)
 
-    gal = galsim.Exponential(half_light_radius=0.5).shear(g1=g1, g2=g2)
-    psf = galsim.Gaussian(fwhm=0.9)
-    deep_psf = galsim.Gaussian(fwhm=0.9*deep_psf_fac)
+    gal = galsim.Exponential(half_light_radius=0.7).shear(g1=g1, g2=g2)
+    psf = galsim.Gaussian(fwhm=0.8)
+    deep_psf = galsim.Gaussian(fwhm=0.8*deep_psf_fac)
     obj = galsim.Convolve([gal, psf])
     deep_obj = galsim.Convolve([gal, deep_psf])
 
@@ -84,13 +84,17 @@ def _make_sim(*, seed, g1, g2, s2n, deep_noise_fac, deep_psf_fac):
     return obs_wide, obs_deep, obs_deep_noise
 
 
-def _run_single_sim(seed, s2n, g1, g2, deep_noise_fac, deep_psf_fac):
+def _run_single_sim(
+    seed, s2n, g1, g2, deep_noise_fac, deep_psf_fac, skip_wide, skip_deep,
+):
     obs_w, obs_d, obs_dn = _make_sim(
         seed=seed, g1=g1, g2=g2, s2n=s2n, deep_noise_fac=deep_noise_fac,
         deep_psf_fac=deep_psf_fac,
     )
     mcal_res = metacal_wide_and_deep_psf_matched(
         obs_w, obs_d, obs_dn,
+        skip_obs_wide_corrections=skip_wide,
+        skip_obs_deep_corrections=skip_deep,
     )
     res = fit_mcal_res_gauss_mom(mcal_res)
     if res is None or np.any(res["flags"] != 0):
@@ -98,12 +102,16 @@ def _run_single_sim(seed, s2n, g1, g2, deep_noise_fac, deep_psf_fac):
     return measure_mcal_shear_quants(res)
 
 
-def _run_sim_pair(seed, s2n, deep_noise_fac, deep_psf_fac):
-    res_p = _run_single_sim(seed, s2n, 0.02, 0.0, deep_noise_fac, deep_psf_fac)
+def _run_sim_pair(seed, s2n, deep_noise_fac, deep_psf_fac, skip_wide, skip_deep):
+    res_p = _run_single_sim(
+        seed, s2n, 0.02, 0.0, deep_noise_fac, deep_psf_fac, skip_wide, skip_deep,
+    )
     if res_p is None:
         return None
 
-    res_m = _run_single_sim(seed, s2n, -0.02, 0.0, deep_noise_fac, deep_psf_fac)
+    res_m = _run_single_sim(
+        seed, s2n, -0.02, 0.0, deep_noise_fac, deep_psf_fac, skip_wide, skip_deep,
+    )
     if res_m is None:
         return None
 
@@ -117,7 +125,7 @@ def test_deep_metacal():
     rng = np.random.RandomState(seed=34132)
     seeds = rng.randint(size=nsims, low=1, high=2**29)
     jobs = [
-        joblib.delayed(_run_sim_pair)(seed, 1e8, noise_fac, 1)
+        joblib.delayed(_run_sim_pair)(seed, 1e8, noise_fac, 1, False, False)
         for seed in seeds
     ]
     outputs = joblib.Parallel(n_jobs=-1, verbose=10)(jobs)
@@ -144,7 +152,7 @@ def test_deep_metacal_psfmatch():
     rng = np.random.RandomState(seed=34132)
     seeds = rng.randint(size=nsims, low=1, high=2**29)
     jobs = [
-        joblib.delayed(_run_sim_pair)(seed, 1e8, noise_fac, 0.8)
+        joblib.delayed(_run_sim_pair)(seed, 1e8, noise_fac, 0.8, False, False)
         for seed in seeds
     ]
     outputs = joblib.Parallel(n_jobs=-1, verbose=10)(jobs)
@@ -171,7 +179,7 @@ def test_deep_metacal_widelows2n():
     rng = np.random.RandomState(seed=34132)
     seeds = rng.randint(size=nsims, low=1, high=2**29)
     jobs = [
-        joblib.delayed(_run_sim_pair)(seed, 20, noise_fac, 1)
+        joblib.delayed(_run_sim_pair)(seed, 20, noise_fac, 1, False, False)
         for seed in seeds
     ]
     outputs = joblib.Parallel(n_jobs=-1, verbose=10)(jobs)
@@ -195,8 +203,9 @@ def test_deep_metacal_widelows2n():
 def test_deep_metacal_slow():
     nsims = 1_000_000
     chunk_size = multiprocessing.cpu_count() * 100
-    nchunks = nsims // chunk_size
+    nchunks = nsims // chunk_size + 1
     noise_fac = 1/np.sqrt(10)
+    nsims = nchunks * chunk_size
 
     rng = np.random.RandomState(seed=34132)
     seeds = rng.randint(size=nsims, low=1, high=2**29)
@@ -206,7 +215,7 @@ def test_deep_metacal_slow():
     for chunk in range(nchunks):
         _seeds = seeds[loc:loc + chunk_size]
         jobs = [
-            joblib.delayed(_run_sim_pair)(seed, 20, noise_fac, 0.8)
+            joblib.delayed(_run_sim_pair)(seed, 20, noise_fac, 0.8, False, False)
             for seed in _seeds
         ]
         outputs = joblib.Parallel(n_jobs=-1, verbose=10)(jobs)
@@ -231,4 +240,53 @@ def test_deep_metacal_slow():
         loc += chunk_size
 
     assert np.abs(m) < max(5e-4, 3*merr), (m, merr)
+    assert np.abs(c) < 4.0*cerr, (c, cerr)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("skip_wide,skip_deep", [
+    (True, False),
+    (False, True),
+    (True, True),
+])
+def test_deep_metacal_slow_terms(skip_wide, skip_deep):
+    nsims = 400  # 1_000_000
+    chunk_size = multiprocessing.cpu_count() * 100
+    nchunks = nsims // chunk_size + 1
+    noise_fac = 1/np.sqrt(10)
+    nsims = nchunks * chunk_size
+
+    rng = np.random.RandomState(seed=34132)
+    seeds = rng.randint(size=nsims, low=1, high=2**29)
+    res_p = []
+    res_m = []
+    loc = 0
+    for chunk in range(nchunks):
+        _seeds = seeds[loc:loc + chunk_size]
+        jobs = [
+            joblib.delayed(_run_sim_pair)(seed, 20, noise_fac, 1, skip_wide, skip_deep)
+            for seed in _seeds
+        ]
+        outputs = joblib.Parallel(n_jobs=-1, verbose=10)(jobs)
+        for res in outputs:
+            if res is not None:
+                res_p.append(res[0])
+                res_m.append(res[1])
+
+        if len(res_p) < 500:
+            njack = len(res_p)
+        else:
+            njack = 100
+
+        m, merr, c, cerr = estimate_m_and_c(
+            res_p, res_m, 0.02, jackknife=njack,
+        )
+
+        print("# of sims:", len(res_p), flush=True)
+        print("m: %f +/- %f [1e-3, 3-sigma]" % (m/1e-3, 3*merr/1e-3), flush=True)
+        print("c: %f +/- %f [1e-5, 3-sigma]" % (c/1e-5, 3*cerr/1e-5), flush=True)
+
+        loc += chunk_size
+
+    assert np.abs(m) >= max(5e-4, 3*merr), (m, merr)
     assert np.abs(c) < 4.0*cerr, (c, cerr)
