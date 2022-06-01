@@ -245,7 +245,7 @@ def test_deep_metacal_slow():
 
 @pytest.mark.slowdeepmdet
 @pytest.mark.parametrize("skip_wide,skip_deep", [
-    (False, False)
+    (False, False),
     (True, True),
     (True, False),
     (False, True),
