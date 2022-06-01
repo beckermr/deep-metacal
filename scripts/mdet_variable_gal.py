@@ -202,7 +202,7 @@ def worker(seed, use_mcal):
 
 if __name__ == "__main__":
 
-    nsims = 10_000
+    nsims = 1000
     rng = np.random.RandomState(seed=34132)
     seeds = rng.randint(size=nsims, low=1, high=2**29)
     jobs = [
