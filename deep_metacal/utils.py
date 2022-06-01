@@ -184,8 +184,8 @@ def _run_jackknife(x1, y1, x2, y2, wgts, jackknife):
 
         loc += n_per
 
-    mbar = np.mean(y1 * wgts) / np.mean(x1 * wgts) - 1
-    cbar = np.mean(y2 * wgts) / np.mean(x2 * wgts)
+    mbar = np.mean(y1[:n] * wgts[:n]) / np.mean(x1[:n] * wgts[:n]) - 1
+    cbar = np.mean(y2[:n] * wgts[:n]) / np.mean(x2[:n] * wgts[:n])
     mvals = np.zeros(jackknife)
     cvals = np.zeros(jackknife)
     for i in range(jackknife):
