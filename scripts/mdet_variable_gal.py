@@ -131,19 +131,19 @@ def mdet(
         nse_level=wide_noise,
     )
 
-    if use_mcal:
-        mcal_res = metacal_op_shears(
-            gal_w_obs,
-            shears=['noshear', '1p', '1m', '2p', '2m'],
-        )
-    else:
-        mcal_res = metacal_wide_and_deep_psf_matched(
-            gal_w_obs, gal_d_obs, nse_d_obs,
-            shears=['noshear', '1p', '1m', '2p', '2m'],
-        )
-    d = deep_metacal.utils.fit_mcal_res_gauss_mom(mcal_res)
+    mcal_res = metacal_op_shears(
+        gal_w_obs,
+        shears=['noshear', '1p', '1m', '2p', '2m'],
+    )
+    dmcal_res = metacal_wide_and_deep_psf_matched(
+        gal_w_obs, gal_d_obs, nse_d_obs,
+        shears=['noshear', '1p', '1m', '2p', '2m'],
+    )
 
-    return d
+    return (
+        deep_metacal.utils.fit_mcal_res_gauss_mom(mcal_res),
+        deep_metacal.utils.fit_mcal_res_gauss_mom(dmcal_res),
+    )
 
 
 def worker(seed, use_mcal):
@@ -212,23 +212,17 @@ if __name__ == "__main__":
     outputs = joblib.Parallel(n_jobs=-1, verbose=10)(jobs)
 
     fitsio.write(
-        "dmcal.fits",
+        "mcal.fits",
         np.concatenate([
-            o for o in outputs if o is not None
+            out[0] for out in outputs if out[0] is not None
         ], axis=0),
         clobber=True,
     )
 
-    jobs = [
-        joblib.delayed(worker)(seed, True)
-        for seed in seeds
-    ]
-    outputs = joblib.Parallel(n_jobs=-1, verbose=10)(jobs)
-
     fitsio.write(
-        "mcal.fits",
+        "dmcal.fits",
         np.concatenate([
-            o for o in outputs if o is not None
+            out[1] for out in outputs if out[1] is not None
         ], axis=0),
         clobber=True,
     )

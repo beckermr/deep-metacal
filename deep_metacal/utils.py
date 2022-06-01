@@ -97,12 +97,7 @@ def fit_mcal_res_gauss_mom(mcal_res):
         vals.append(
             (res["flags"], res["e"], res["T"]/psf_res["T"], res["s2n"], shear)
         )
-    d = np.array(vals, dtype=dt)
-    msk = d["flags"] == 0
-    if not np.any(msk):
-        return None
-    else:
-        return d[msk]
+    return np.array(vals, dtype=dt)
 
 
 @contextmanager
