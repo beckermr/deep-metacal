@@ -264,7 +264,7 @@ def test_deep_metacal_slow_terms(skip_wide, skip_deep):
     for chunk in range(nchunks):
         _seeds = seeds[loc:loc + chunk_size]
         jobs = [
-            joblib.delayed(_run_sim_pair)(seed, 10, noise_fac, 1, skip_wide, skip_deep)
+            joblib.delayed(_run_sim_pair)(seed, 1e6, noise_fac, 1, skip_wide, skip_deep)
             for seed in _seeds
         ]
         outputs = joblib.Parallel(n_jobs=-1, verbose=10)(jobs)
