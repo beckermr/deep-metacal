@@ -172,12 +172,16 @@ def estimate_m_and_c_lists(
     """
 
     with timer("running jackknife", silent=silent):
-        n_per = pdata.shape[0] // jackknife
+        n = pdata.shape[0] // 5
+
+        n_per = n // jackknife
         if n_per < 1:
             n_per = 1
-            jackknife = pdata.shape[0]
-
+            jackknife = n
         n = n_per * jackknife
+
+        n *= 5
+        n_per *= 5
         assert n <= pdata.shape[0]
 
         pdata = pdata[:n]
@@ -204,7 +208,7 @@ def estimate_m_and_c_lists(
         g2err,
     )
 
-    print("# of sims:", n, flush=True)
+    print("# of sims:", n // 5, flush=True)
     print("m: %f +/- %f [1e-3, 3-sigma]" % (m/1e-3, 3*merr/1e-3), flush=True)
     print("c: %f +/- %f [1e-5, 3-sigma]" % (c/1e-5, 3*cerr/1e-5), flush=True)
 
@@ -223,7 +227,6 @@ def test_deep_metacal_slow_terms(skip_wide, skip_deep):
     nchunks = int(np.ceil(nsims // chunk_size))
     noise_fac = 1/np.sqrt(10)
     nsims = nchunks * chunk_size
-    print(nsims, nchunks, chunk_size)
 
     rng = np.random.RandomState(seed=4243562)
     seeds = rng.randint(size=nsims, low=1, high=2**29)
@@ -255,8 +258,6 @@ def test_deep_metacal_slow_terms(skip_wide, skip_deep):
             else:
                 res_p = np.concatenate([res_p, _res_p], axis=0)
                 res_m = np.concatenate([res_m, _res_m], axis=0)
-
-        print(res_p.shape[0])
 
         m, merr, c, cerr = estimate_m_and_c_lists(
             res_p,
