@@ -240,7 +240,7 @@ def test_deep_metacal_slow_terms(skip_wide, skip_deep):
                 joblib.delayed(_run_sim_pair)(seed, 12, noise_fac, skip_wide, skip_deep)
                 for seed in _seeds
             ]
-            outputs = joblib.Parallel(n_jobs=-1, verbose=10)(jobs)
+            outputs = joblib.Parallel(n_jobs=-1, verbose=0)(jobs)
 
         with timer("collecting results"):
             _res_p = []
