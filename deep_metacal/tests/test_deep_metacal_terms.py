@@ -222,7 +222,7 @@ def estimate_m_and_c_lists(
     (True, True),
 ])
 def test_deep_metacal_slow_terms(skip_wide, skip_deep):
-    nsims = 20_000
+    nsims = 100_000
     chunk_size = multiprocessing.cpu_count() * 100
     nchunks = int(np.ceil(nsims // chunk_size))
     noise_fac = 1/np.sqrt(10)
