@@ -223,6 +223,7 @@ def test_deep_metacal_slow_terms(skip_wide, skip_deep):
     nchunks = int(np.ceil(nsims // chunk_size))
     noise_fac = 1/np.sqrt(10)
     nsims = nchunks * chunk_size
+    print(nsims, nchunks, chunk_size)
 
     rng = np.random.RandomState(seed=4243562)
     seeds = rng.randint(size=nsims, low=1, high=2**29)
@@ -254,6 +255,8 @@ def test_deep_metacal_slow_terms(skip_wide, skip_deep):
             else:
                 res_p = np.concatenate([res_p, _res_p], axis=0)
                 res_m = np.concatenate([res_m, _res_m], axis=0)
+
+        print(res_p.shape[0])
 
         m, merr, c, cerr = estimate_m_and_c_lists(
             res_p,
