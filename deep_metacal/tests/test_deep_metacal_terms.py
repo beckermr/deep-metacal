@@ -39,7 +39,7 @@ def _make_single_sim(*, rng, psf, obj, nse, dither):
     return obs
 
 
-def _make_sim(*, seed, g1, g2, s2n, deep_noise_fac):
+def _make_sim(*, seed, g1, g2, deep_noise_fac):
     rng = np.random.RandomState(seed=seed)
 
     gal = galsim.Exponential(half_light_radius=0.5).shear(g1=g1, g2=g2)
@@ -50,9 +50,7 @@ def _make_sim(*, seed, g1, g2, s2n, deep_noise_fac):
 
     # estimate noise level
     dither = np.zeros(2)
-    scale = 0.2
-    im = obj.drawImage(nx=73, ny=73, offset=dither, scale=scale).array
-    nse = np.sqrt(np.sum(im**2)) / s2n
+    nse = 8e-3
 
     dither = rng.uniform(size=2, low=-0.5, high=0.5)
     obs_wide = _make_single_sim(
@@ -83,10 +81,10 @@ def _make_sim(*, seed, g1, g2, s2n, deep_noise_fac):
 
 
 def _run_single_sim(
-    seed, s2n, g1, g2, deep_noise_fac, skip_wide, skip_deep,
+    seed, g1, g2, deep_noise_fac, skip_wide, skip_deep,
 ):
     obs_w, obs_d, obs_dn = _make_sim(
-        seed=seed, g1=g1, g2=g2, s2n=s2n, deep_noise_fac=deep_noise_fac,
+        seed=seed, g1=g1, g2=g2, deep_noise_fac=deep_noise_fac,
     )
     mcal_res = metacal_wide_and_deep_psf_matched(
         obs_w, obs_d, obs_dn,
@@ -96,13 +94,13 @@ def _run_single_sim(
     return fit_mcal_res_gauss_mom(mcal_res)
 
 
-def _run_sim_pair(seed, s2n, deep_noise_fac, skip_wide, skip_deep):
+def _run_sim_pair(seed, deep_noise_fac, skip_wide, skip_deep):
     res_p = _run_single_sim(
-        seed, s2n, 0.02, 0.0, deep_noise_fac, skip_wide, skip_deep,
+        seed, 0.02, 0.0, deep_noise_fac, skip_wide, skip_deep,
     )
 
     res_m = _run_single_sim(
-        seed, s2n, -0.02, 0.0, deep_noise_fac, skip_wide, skip_deep,
+        seed, -0.02, 0.0, deep_noise_fac, skip_wide, skip_deep,
     )
 
     return res_p, res_m
@@ -237,7 +235,7 @@ def test_deep_metacal_slow_terms(skip_wide, skip_deep):
         with timer("running chunk %d of %d" % (chunk+1, nchunks)):
             _seeds = seeds[loc:loc + chunk_size]
             jobs = [
-                joblib.delayed(_run_sim_pair)(seed, 12, noise_fac, skip_wide, skip_deep)
+                joblib.delayed(_run_sim_pair)(seed, noise_fac, skip_wide, skip_deep)
                 for seed in _seeds
             ]
             outputs = joblib.Parallel(n_jobs=-1, verbose=0)(jobs)
