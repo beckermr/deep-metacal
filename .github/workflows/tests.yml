@@ -2,10 +2,10 @@ name: tests
 
 on:
   workflow_dispatch: null
-  # push:
-  #   branches:
-  #     - main
-  # pull_request: null
+  push:
+    branches:
+      - main
+  pull_request: null
 
 jobs:
   tests:
